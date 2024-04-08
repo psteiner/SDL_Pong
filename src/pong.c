@@ -1,14 +1,19 @@
-// bare bones minimal SDL2 program
-// based on https://gist.github.com/transmutrix/8c8299e7322cdf5acb2225c5cf4c9e03
-/* Displays a window that changes color until you close it. */
+// SDL2 Pong Game
 
 #include <stdio.h>
 #include <math.h>
 #include <stdbool.h>
 #include <SDL.h>
+#include <SDL_ttf.h>
 
 #define SCREEN_WIDTH 640
 #define SCREEN_HEIGHT 480
+
+typedef struct Ball Ball;
+struct Ball {
+  int x;
+  int y;
+};
 
 int main(int arc, char* argv[]) {
   SDL_Event e;
@@ -20,7 +25,7 @@ int main(int arc, char* argv[]) {
     fprintf(stderr, "Could not initialize SDL2: %s\n", SDL_GetError());
   }
 
-  window = SDL_CreateWindow("Hello World",
+  window = SDL_CreateWindow("SDL Pong",
     SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
     SCREEN_WIDTH, SCREEN_HEIGHT, 0);
 
@@ -33,7 +38,6 @@ int main(int arc, char* argv[]) {
 
   while (running) {
     
-    
     while (SDL_PollEvent(&e)) {
       if (e.type == SDL_QUIT) {
         running = false;
@@ -45,17 +49,10 @@ int main(int arc, char* argv[]) {
       running = false;
     }
 
-    const double time = SDL_GetTicks() / 1000.0;
-
-    SDL_FillRect(screen_surf, NULL, SDL_MapRGB(screen_surf->format,
-      (int)((sin(time * M_PI * 0.25) + 1) / 2 * 0xff),
-      (int)((sin((time + M_PI) * M_PI * .25) + 1) / 2 * 0xff),
-      (int)((sin((time + M_PI / 2) * M_PI * .25) + 1) / 2 * 0xff)));
-
     SDL_UpdateWindowSurface(window);
   }
 
   SDL_DestroyWindow(window);
   SDL_Quit();
-  return 0;
+  return EXIT_SUCCESS;
 }
