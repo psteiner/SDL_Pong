@@ -1,0 +1,20 @@
+{
+    "configurations": [
+        {
+            "name": "GCC",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "D:/SDL2/include/SDL2"
+            ],
+            "defines": [
+                "_DEBUG",
+                "UNICODE",
+                "_UNICODE"
+            ],
+            "intelliSenseMode": "windows-gcc-x86",
+            "cStandard": "c17",
+            "compilerPath": "D:/Tools/w64devkit/bin/gcc.exe"
+        }
+    ],
+    "version": 4
+}

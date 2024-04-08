@@ -1,0 +1,36 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "cppbuild",
+			"label": "C/C++: gcc.exe build active file",
+			"command": "D:\\Tools\\w64devkit\\bin\\gcc.exe",
+			"args": [
+				"-fdiagnostics-color=always",
+				"-g",
+				"${file}",
+				"-o",
+				"${workspaceFolder}\\build\\${fileBasenameNoExtension}.exe",
+        "-I","D:\\SDL2\\include\\SDL2",
+				"-L","D:\\SDL2\\lib",
+				"-lmingw32",
+				"-lSDL2main",
+				"-lSDL2",
+				"-lSDL2_image",
+				"-std=c17",
+
+			],
+			"options": {
+				"cwd": "D:\\Tools\\w64devkit\\bin"
+			},
+			"problemMatcher": [
+				"$gcc"
+			],
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"detail": "compiler: D:\\Tools\\w64devkit\\bin\\gcc.exe"
+		}
+	]
+}
