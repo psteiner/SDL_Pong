@@ -15,7 +15,7 @@ struct Ball {
   int y;
 };
 
-int main(int arc, char* argv[]) {
+int main(int argc, char* argv[argc+1]) {
   SDL_Event e;
   SDL_Window* window = NULL;
   SDL_Surface* screen_surf = NULL;
