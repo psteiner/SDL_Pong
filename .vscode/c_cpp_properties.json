@@ -2,6 +2,7 @@
     "configurations": [
         {
             "name": "GCC",
+
             "includePath": [
                 "${workspaceFolder}/**",
                 "D:/SDL2/include/SDL2"
@@ -11,9 +12,10 @@
                 "UNICODE",
                 "_UNICODE"
             ],
-            "intelliSenseMode": "windows-gcc-x86",
+            "intelliSenseMode": "windows-gcc-x64",
             "cStandard": "c17",
-            "compilerPath": "D:/Tools/w64devkit/bin/gcc.exe"
+            "compilerPath": "D:/w64devkit/bin/gcc.exe"
+
         }
     ],
     "version": 4

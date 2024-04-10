@@ -1,10 +1,6 @@
 // SDL2 Pong Game
 
-#include <stdio.h>
-#include <math.h>
-#include <stdbool.h>
-#include <SDL.h>
-#include <SDL_ttf.h>
+#include "pong.h"
 
 #define SCREEN_WIDTH 640
 #define SCREEN_HEIGHT 480
@@ -18,8 +14,8 @@ struct Ball {
 int main(int argc, char* argv[argc+1]) {
   SDL_Event e;
   SDL_Window* window = NULL;
-  SDL_Surface* screen_surf = NULL;
-  int running = true;
+  // SDL_Surface* screen_surf = NULL;
+  bool running = true;
 
   if (SDL_Init(SDL_INIT_VIDEO) < 0) {
     fprintf(stderr, "Could not initialize SDL2: %s\n", SDL_GetError());
@@ -34,7 +30,7 @@ int main(int argc, char* argv[argc+1]) {
     return 1;
   }
 
-  screen_surf = SDL_GetWindowSurface(window);
+  // screen_surf = SDL_GetWindowSurface(window);
 
   while (running) {
     

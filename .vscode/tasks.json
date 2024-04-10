@@ -4,7 +4,7 @@
 		{
 			"type": "cppbuild",
 			"label": "C/C++: gcc.exe build active file",
-			"command": "D:\\Tools\\w64devkit\\bin\\gcc.exe",
+			"command": "D:\\w64devkit\\bin\\gcc.exe",
 			"args": [
 				"-fdiagnostics-color=always",
 				"-g",
@@ -18,10 +18,9 @@
 				"-lSDL2",
 				"-lSDL2_image",
 				"-std=c17",
-
 			],
 			"options": {
-				"cwd": "D:\\Tools\\w64devkit\\bin"
+				"cwd": "D:\\w64devkit\\bin"
 			},
 			"problemMatcher": [
 				"$gcc"
@@ -30,7 +29,20 @@
 				"kind": "build",
 				"isDefault": true
 			},
-			"detail": "compiler: D:\\Tools\\w64devkit\\bin\\gcc.exe"
+			"detail": "compiler: D:\\w64devkit\\bin\\gcc.exe"
+		},
+		{
+			"type": "shell",
+			"label": "clean",
+			"command": "del",
+			"args": [
+				"${workspaceFolder}\\build\\${fileBasenameNoExtension}.exe",
+			],
+			"group": {
+				"kind": "build",
+				
+				"isDefault": false
+			},
 		}
 	]
 }
