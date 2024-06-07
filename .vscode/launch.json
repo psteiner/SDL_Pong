@@ -5,10 +5,10 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "(gdb) Launch",
+      "name": "build debug",
       "type": "cppdbg",
       "request": "launch",
-      "program": "${workspaceFolder}/build/${fileBasenameNoExtension}.exe",
+      "program": "${workspaceFolder}/bin/${fileBasenameNoExtension}.exe",
       "args": [],
       "stopAtEntry": false,
       "cwd": "${fileDirname}",
@@ -28,7 +28,7 @@
               "ignoreFailures": true
           }
       ],
-      "preLaunchTask": "C/C++: gcc.exe build active file"
+      "preLaunchTask": "build debug"
     },
   ]
 }
