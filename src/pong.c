@@ -12,18 +12,17 @@
 #define SCREEN_HEIGHT 480
 #define SCREEN_MID_W SCREEN_WIDTH / 2
 #define SCREEN_MID_H SCREEN_HEIGHT / 2
+#define SCREEN_FPS_BUF_SIZE 50
+#define SCREEN_FPS 30
+#define SCREEN_TICKS_PER_FRAME 1000 / SCREEN_FPS
 
 #define BALL_SIZE 10
 #define PADDLE_W 10
-// paddle height must be a multiple of 3
 #define PADDLE_H 60
 #define PADDLE_SPEED 5
 #define GOAL_OFFSET 15
 
 #define MAX_SCORE 20
-
-const int SCREEN_FPS = 60;
-const int SCREEN_TICK_PER_FRAME = 1000 / SCREEN_FPS;
 
 #define LOGCAT SDL_LOG_CATEGORY_APPLICATION
 
@@ -62,12 +61,19 @@ struct ScoreBoard {
   int robot;
 };
 
+SDL_Texture* g_fps_texture;
+
 App* init(void);
 
 App* init(void) {
+
+  srand(time(0));
+  //  SDL_LOG_PRIORITY_INFO
+  SDL_LogSetPriority(LOGCAT, SDL_LOG_PRIORITY_DEBUG);
+
   App* app = malloc(sizeof(App));
 
-  if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+  if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) < 0) {
     fprintf(stderr, "Could not initialize SDL2: %s\n", SDL_GetError());
   }
   //Set texture filtering to linear
@@ -99,12 +105,20 @@ App* init(void) {
       IMG_GetError());
   }
 
+  //Initialize SDL_ttf
+  if (TTF_Init() == -1) {
+    SDL_LogCritical(LOGCAT,
+      "SDL_ttf could not initialize! SDL_ttf Error: %s\n",
+      TTF_GetError());
+  }
+
   //Initialize SDL_mixer
   if (Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048) < 0) {
     SDL_LogCritical(LOGCAT,
       "SDL_mixer could not initialize! SDL_mixer Error: %s\n",
       Mix_GetError());
   }
+
   return app;
 }
 
@@ -117,7 +131,6 @@ void move_ball(Ball* ball) {
     ball->dy *= -1;
   }
 }
-
 
 void handle_input(SDL_Event* e, Paddle* player);
 void handle_input(SDL_Event* e, Paddle* player) {
@@ -188,7 +201,7 @@ void check_collision(Ball* ball, Paddle* player) {
   // inside the paddle
   if (collide_player) {
     ball->ball.x = paddle_left - ball->ball.w;
-  } 
+  }
   if (collide_robot) {
     ball->ball.x = paddle_right + ball->ball.w;
   }
@@ -212,27 +225,29 @@ void move_paddle(Paddle* paddle) {
 void serve_ball(Ball* ball);
 void serve_ball(Ball* ball) {
   ball->speed = 1;
-  // ball->fudge = rand() % 4 - 1;
 
   do {
     ball->fudge = rand() % 4 - 4;
   } while (ball->fudge == 0);
-  
-  // ball->fudge = -3;
 
   SDL_LogDebug(LOGCAT, "fudge: %i\n", ball->fudge);
 
-  ball->dx = rand() % 4 + 2;
   do {
     ball->dy = rand() % 6 - 2;
-
   } while (ball->dy == 0);
-
+  ball->dy = 2;
+  // ball->dx = rand() % 4 + 2;
+  ball->dx = 2;
   ball->ball.x = SCREEN_MID_W;
   ball->ball.y = SCREEN_MID_H - BALL_SIZE / 2;
   ball->ball.h = BALL_SIZE;
   ball->ball.w = BALL_SIZE;
   SDL_LogDebug(LOGCAT, "Ball dx: %d dy: %d\n", ball->dx, ball->dy);
+}
+
+void draw_score(ScoreBoard* score_board);
+void draw_score(ScoreBoard* score_board) {
+
 }
 
 void draw_net(App* app);
@@ -245,11 +260,33 @@ void draw_net(App* app) {
   }
 }
 
+void draw_stats(App* app, int frame_count, Uint32 fps_ticks, TTF_Font* fps_font);
+void draw_stats(App* app, int frame_count, Uint32 fps_ticks, TTF_Font* fps_font) {
+  char fps_text[SCREEN_FPS_BUF_SIZE];
+  SDL_Color fps_color = { .r = 255, .g = 0, .b = 0, .a = 255 };
+
+  double avg_fps = frame_count / ((SDL_GetTicks() - fps_ticks) / 1000.f);
+
+  snprintf(fps_text, SCREEN_FPS_BUF_SIZE, "Avg FPS: %0.0f", avg_fps);
+  SDL_Surface* fps_surface = TTF_RenderText_Blended(fps_font, fps_text, fps_color);
+  g_fps_texture = SDL_CreateTextureFromSurface(app->renderer, fps_surface);
+  int fps_w = fps_surface->w;
+  int fps_h = fps_surface->h;
+  SDL_FreeSurface(fps_surface);
+  fps_surface = NULL;
+
+  SDL_Rect renderQuad = { 10, 460, fps_w, fps_h };
+
+  SDL_RenderCopyEx(
+    app->renderer, g_fps_texture, NULL, &renderQuad, 0, NULL, SDL_FLIP_NONE);
+  SDL_DestroyTexture(g_fps_texture);
+  g_fps_texture = NULL;
+
+}
+
+
 int main(int argc, char* argv[]) {
   (void)argc, (void)argv;
-  srand(time(0));
-  //  SDL_LOG_PRIORITY_INFO
-  SDL_LogSetPriority(LOGCAT, SDL_LOG_PRIORITY_DEBUG);
 
   App* app = init();
 
@@ -258,8 +295,22 @@ int main(int argc, char* argv[]) {
     return EXIT_FAILURE;
   }
 
-  SDL_Event e;
-  bool running = true;
+  //Open the font
+  TTF_Font* fps_font =
+    TTF_OpenFont("../assets/Inconsolata-Regular.ttf", 14);
+  if (fps_font == NULL) {
+    SDL_LogError(LOGCAT,
+      "Failed to load font! SDL_ttf Error: %s\n",
+      TTF_GetError());
+  }
+  Uint32 fps_ticks = 0;
+  int frame_count = 0;
+
+  Uint32 cap_ticks = 0;
+  Uint32 frame_ticks = 0;
+
+  ScoreBoard score_board = { .player = 0, .robot = 0 };
+
   Ball ball = { 0 };
   serve_ball(&ball);
 
@@ -289,7 +340,13 @@ int main(int argc, char* argv[]) {
     }
   };
 
+  SDL_Event e;
+  bool running = true;
+  fps_ticks = SDL_GetTicks();
+
   while (running) {
+    cap_ticks = SDL_GetTicks();
+
     while (SDL_PollEvent(&e)) {
       if (e.type == SDL_QUIT) {
         running = false;
@@ -316,17 +373,25 @@ int main(int argc, char* argv[]) {
 
     // move ball
     move_ball(&ball);
-    if (ball.ball.x < 0 || ball.ball.x > SCREEN_WIDTH) {
+
+    // check for score
+    if (ball.ball.x < 0) {
+      // Player scored
+      score_board.player++;
       serve_ball(&ball);
-      SDL_LogDebug(LOGCAT, "Robot dy: %d\n", robot.dy);
+    }
+    if (ball.ball.x > SCREEN_WIDTH) {
+      // Robot scored
+      score_board.robot++;
+      serve_ball(&ball);
     }
 
     //Clear screen
     SDL_SetRenderDrawColor(app->renderer, 0x00, 0x00, 0x00, 0xFF);
     SDL_RenderClear(app->renderer);
 
-    // draw net
     draw_net(app);
+    draw_score(&score_board);
 
     // draw paddles
     SDL_SetRenderDrawColor(app->renderer, 0xFF, 0xFF, 0xFF, 0xFF);
@@ -337,11 +402,25 @@ int main(int argc, char* argv[]) {
     SDL_SetRenderDrawColor(app->renderer, 0xFF, 0xFF, 0xFF, 0xFF);
     SDL_RenderFillRect(app->renderer, &ball.ball);
 
+    draw_stats(app, frame_count, fps_ticks, fps_font);
+
     // Update screen
     SDL_RenderPresent(app->renderer);
+    ++frame_count;
+
+    // Cap frame rate
+    frame_ticks = SDL_GetTicks() - cap_ticks;
+    if (frame_ticks < SCREEN_TICKS_PER_FRAME) {
+      SDL_Delay(SCREEN_TICKS_PER_FRAME - frame_ticks);
+    }
   }
 
+  TTF_CloseFont(fps_font);
+  SDL_DestroyTexture(g_fps_texture);
+  SDL_DestroyRenderer(app->renderer);
   SDL_DestroyWindow(app->window);
+  TTF_Quit();
+  IMG_Quit();
   SDL_Quit();
   return EXIT_SUCCESS;
 
