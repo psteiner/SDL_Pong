@@ -186,6 +186,30 @@ void update_player(Ball* ball, Paddle* player) {
   }
 }
 
+void change_ball_speed(Ball* ball, Paddle* player);
+void change_ball_speed(Ball* ball, Paddle* player) {
+  // give the player a chance to change the ball speed
+  // if the ball hit in the sweet spot,
+  // increase its speed up to BALL_MAX_SPEED, otherwise 
+  // reduce its speed down to BALL_MIN_SPEED
+
+  if (get_fudge() % 3) {
+    return;
+  }
+
+  int sweet_spot_top = player->y + player->h / 3;
+  int sweet_spot_bottom = player->y + (player->h / 3) * 2;
+
+  if (ball->y > sweet_spot_top && ball->y < sweet_spot_bottom) {
+    if (ball->speed < BALL_MAX_SPEED) {
+      ball->speed += 10;
+    }
+  } else {
+    if (ball->speed > BALL_MIN_SPEED) {
+      ball->speed -= 10;
+    }
+  }
+}
 
 void check_collision(Ball* ball, Paddle* player);
 void check_collision(Ball* ball, Paddle* player) {
@@ -212,6 +236,7 @@ void check_collision(Ball* ball, Paddle* player) {
   if (collide_player) {
     ball->x = paddle_left - ball->w;
   }
+
   if (collide_robot) {
     ball->x = paddle_right + ball->w;
   }
@@ -220,6 +245,8 @@ void check_collision(Ball* ball, Paddle* player) {
   if (collide_player || collide_robot) {
     ball->dx = -ball->dx;
     ball->fudge = get_fudge();
+    // give player a chance to change the ball speed
+    change_ball_speed(ball, player);
   }
 }
 
@@ -246,7 +273,7 @@ void serve_ball(Ball* ball) {
     rand() % n      ->  0 to n-1
 
     rand() % 7      ->  0 to 6
-    rand() % 7 - 3  -> -3 to 3 
+    rand() % 7 - 3  -> -3 to 3
     rand() % 9 - 4  -> -4 to 4
   */
 
@@ -302,8 +329,8 @@ void draw_stats(App* app, int frame_count, Uint32 fps_ticks, TTF_Font* fps_font,
 
   double avg_fps = frame_count / ((SDL_GetTicks() - fps_ticks) / 1000.f);
 
-  snprintf(fps_text, SCREEN_FPS_BUF_SIZE, 
-    "Avg FPS: %0.f Ball dy:%2.f fudge: %d, speed; %d", 
+  snprintf(fps_text, SCREEN_FPS_BUF_SIZE,
+    "Avg FPS: %0.f Ball dy:%2.f fudge: %d, speed; %d",
     avg_fps, ball->dy, ball->fudge, ball->speed);
 
   SDL_Surface* fps_surface =
@@ -402,10 +429,10 @@ int main(int argc, char* argv[]) {
       handle_input(&e, &player);
     }
 
-    update_player(&ball, &robot); 
+    update_player(&ball, &robot);
 
     check_collision(&ball, &player);
-    check_collision(&ball, &robot); 
+    check_collision(&ball, &robot);
 
     double time_step = (SDL_GetTicks() - step_ticks) / 1000.f;
     ball.time_step = time_step;
