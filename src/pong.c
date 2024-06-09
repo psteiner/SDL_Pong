@@ -12,6 +12,8 @@
 #define SCREEN_HEIGHT 480
 #define SCREEN_MID_W SCREEN_WIDTH / 2
 #define SCREEN_MID_H SCREEN_HEIGHT / 2
+#define COURT_OFFSIDE 20
+#define COURT_HEIGHT SCREEN_HEIGHT - COURT_OFFSIDE
 #define SCREEN_FPS_BUF_SIZE 50
 #define SCREEN_FPS 60
 #define SCREEN_TICKS_PER_FRAME 1000 / SCREEN_FPS
@@ -224,11 +226,11 @@ void check_collision(Ball* ball, Paddle* player) {
 void move_paddle(Paddle* paddle);
 void move_paddle(Paddle* paddle) {
   paddle->y += paddle->dy * paddle->speed * paddle->time_step;
-  if (paddle->y < 0) {
-    paddle->y = 0;
+  if (paddle->y < COURT_OFFSIDE) {
+    paddle->y = COURT_OFFSIDE;
   }
-  if (paddle->y + paddle->h > SCREEN_HEIGHT) {
-    paddle->y = SCREEN_HEIGHT - paddle->h;
+  if (paddle->y + paddle->h > COURT_HEIGHT) {
+    paddle->y = COURT_HEIGHT - paddle->h;
   }
 }
 
