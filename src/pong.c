@@ -14,7 +14,7 @@
 #define SCREEN_MID_H SCREEN_HEIGHT / 2
 #define COURT_OFFSIDE 20
 #define COURT_HEIGHT SCREEN_HEIGHT - COURT_OFFSIDE
-#define SCREEN_FPS_BUF_SIZE 50
+#define SCREEN_FPS_BUF_SIZE 100
 #define SCREEN_FPS 60
 #define SCREEN_TICKS_PER_FRAME 1000 / SCREEN_FPS
 
@@ -24,7 +24,12 @@
 #define PADDLE_W 10
 #define PADDLE_H 60
 #define PADDLE_SPEED 20
+#define PADDLE_Y SCREEN_MID_H - PADDLE_H / 2
 #define GOAL_OFFSET 15
+#define PLAYER_X SCREEN_WIDTH - PADDLE_W - GOAL_OFFSET
+#define ROBOT_X GOAL_OFFSET
+#define PLAYER_SERVICE_X SCREEN_WIDTH - PADDLE_W - GOAL_OFFSET - PADDLE_W / 2
+#define ROBOT_SERVICE_X PADDLE_W + GOAL_OFFSET
 
 #define MAX_SCORE 20
 
@@ -73,6 +78,7 @@ typedef struct ScoreBoard ScoreBoard;
 struct ScoreBoard {
   int player;
   int robot;
+  TTF_Font* font;
 };
 
 App* init(void);
@@ -271,7 +277,6 @@ void serve_ball(Ball* ball) {
     Service angle adjustment
     a % b:	the remainder of a divided by b
     rand() % n      ->  0 to n-1
-
     rand() % 7      ->  0 to 6
     rand() % 7 - 3  -> -3 to 3
     rand() % 9 - 4  -> -4 to 4
@@ -281,17 +286,17 @@ void serve_ball(Ball* ball) {
     ball->dy = rand() % 7 - 3;
   } while (ball->dy == 0);
 
-  // rand() % 4: 0 to 3
-  // range 2 to 5
+  // rand() % 4:     0 to 3
+  // rand() % 4 + 2: 2 to 5
   ball->dx = rand() % 4 + 2;
   if (ball->service == PLAYER) {
-    ball->dx -= ball->dx;
+    ball->dx *= -1;
   }
 
   ball->fudge = get_fudge();
 
   ball->time_step = 0;
-  ball->x = SCREEN_MID_W;
+  ball->x = ball->service == ROBOT ? ROBOT_SERVICE_X : PLAYER_SERVICE_X;
   ball->y = SCREEN_MID_H - BALL_SIZE / 2;
   ball->h = BALL_SIZE;
   ball->w = BALL_SIZE;
@@ -307,9 +312,32 @@ void move_ball(Ball* ball) {
   }
 }
 
-void draw_score(ScoreBoard* score_board);
-void draw_score(ScoreBoard* score_board) {
+void draw_score(App* app, ScoreBoard* score_board);
+void draw_score(App* app, ScoreBoard* score_board) {
+  char score_text[SCREEN_FPS_BUF_SIZE];
+  SDL_Color score_color = { .r = 255, .g = 255, .b = 255, .a = 255 };
 
+  snprintf(score_text, SCREEN_FPS_BUF_SIZE,
+    "%.2d   %.2d", score_board->robot, score_board->player);
+  SDL_Surface* score_surface =
+    TTF_RenderText_Blended(score_board->font, score_text, score_color);
+  SDL_Texture* fps_texture =
+    SDL_CreateTextureFromSurface(app->renderer, score_surface);
+
+  int w = 0;
+  int h = 0;
+
+  TTF_SizeUTF8(score_board->font, score_text, &w, &h);
+  SDL_FreeSurface(score_surface);
+  score_surface = NULL;
+
+  int text_x = (SCREEN_WIDTH - w) / 2;
+
+  SDL_Rect renderQuad = { text_x, 10, w, h };
+  SDL_RenderCopyEx(
+    app->renderer, fps_texture, NULL, &renderQuad, 0, NULL, SDL_FLIP_NONE);
+  SDL_DestroyTexture(fps_texture);
+  fps_texture = NULL;
 }
 
 void draw_net(App* app);
@@ -330,8 +358,8 @@ void draw_stats(App* app, int frame_count, Uint32 fps_ticks, TTF_Font* fps_font,
   double avg_fps = frame_count / ((SDL_GetTicks() - fps_ticks) / 1000.f);
 
   snprintf(fps_text, SCREEN_FPS_BUF_SIZE,
-    "Avg FPS: %0.f Ball dy:%2.f fudge: %d, speed; %d",
-    avg_fps, ball->dy, ball->fudge, ball->speed);
+    "Avg FPS:%2.f Ball [dx:%2.f dy:%2.f] [x:%4.f y:%4.f] fudge:%2d, speed: %d",
+    avg_fps, ball->dx, ball->dy, ball->x, ball->y, ball->fudge, ball->speed);
 
   SDL_Surface* fps_surface =
     TTF_RenderText_Blended(fps_font, fps_text, fps_color);
@@ -360,7 +388,7 @@ int main(int argc, char* argv[]) {
     return EXIT_FAILURE;
   }
 
-  //Open the font
+  //Open the fonts
   TTF_Font* fps_font =
     TTF_OpenFont("../assets/Inconsolata-Regular.ttf", 14);
   if (fps_font == NULL) {
@@ -373,6 +401,14 @@ int main(int argc, char* argv[]) {
   Uint32 frame_ticks = 0;
 
   ScoreBoard score_board = { .player = 0, .robot = 0 };
+
+  score_board.font =
+    TTF_OpenFont("../assets/VT323-Regular.ttf", 40);
+  if (fps_font == NULL) {
+    SDL_LogError(LOGCAT,
+      "Failed to load font! SDL_ttf Error: %s\n",
+      TTF_GetError());
+  }
 
   Ball ball = { 0 };
   serve_ball(&ball);
@@ -387,8 +423,8 @@ int main(int argc, char* argv[]) {
     .fudge = 0,
     .h = PADDLE_H,
     .w = PADDLE_W,
-    .x = SCREEN_WIDTH - PADDLE_W - GOAL_OFFSET,
-    .y = SCREEN_MID_H - PADDLE_H / 2
+    .x = PLAYER_X,
+    .y = PADDLE_Y
   };
 
   Paddle robot = {
@@ -400,8 +436,8 @@ int main(int argc, char* argv[]) {
     .fudge = 0,
     .h = PADDLE_H,
     .w = PADDLE_W,
-    .x = GOAL_OFFSET,
-    .y = SCREEN_MID_H - PADDLE_H / 2
+    .x = ROBOT_X,
+    .y = PADDLE_Y
   };
 
   SDL_Event e;
@@ -452,14 +488,21 @@ int main(int argc, char* argv[]) {
       // Player scored
       score_board.player++;
       serve_ball(&ball);
+
+      // update defaults
       ball.service = PLAYER;
+      ball.x = PLAYER_SERVICE_X;
+      ball.y = player.y + player.h / 2;
     }
     if (ball.x > SCREEN_WIDTH) {
       // Robot scored
       score_board.robot++;
       serve_ball(&ball);
+
+      // update defaults
       ball.service = ROBOT;
-      ball.speed = ball.speed < BALL_MAX_SPEED ? ball.speed + 5 : BALL_MAX_SPEED;
+      ball.x = ROBOT_SERVICE_X;
+      ball.y = robot.y + player.h / 2;
     }
 
     //Clear screen
@@ -467,7 +510,7 @@ int main(int argc, char* argv[]) {
     SDL_RenderClear(app->renderer);
 
     draw_net(app);
-    draw_score(&score_board);
+    draw_score(app, &score_board);
 
     // draw player paddle
     SDL_SetRenderDrawColor(app->renderer, 0xFF, 0xFF, 0xFF, 0xFF);
@@ -500,6 +543,7 @@ int main(int argc, char* argv[]) {
   }
 
   TTF_CloseFont(fps_font);
+  TTF_CloseFont(score_board.font);
   SDL_DestroyRenderer(app->renderer);
   SDL_DestroyWindow(app->window);
   TTF_Quit();
