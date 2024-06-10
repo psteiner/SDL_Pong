@@ -15,6 +15,7 @@
 #define COURT_OFFSIDE 20
 #define COURT_HEIGHT SCREEN_HEIGHT - COURT_OFFSIDE
 #define SCREEN_FPS_BUF_SIZE 100
+#define SCREEN_INSTRUCTIONS_BUF_SIZE 50
 #define SCREEN_FPS 60
 #define SCREEN_TICKS_PER_FRAME 1000 / SCREEN_FPS
 
@@ -78,6 +79,7 @@ typedef struct ScoreBoard ScoreBoard;
 struct ScoreBoard {
   int player;
   int robot;
+  bool idle;
   TTF_Font* font;
 };
 
@@ -166,6 +168,18 @@ void handle_input(SDL_Event* e, Paddle* player) {
   }
 }
 
+void reset_paddle(Paddle* player);
+void reset_paddle(Paddle* player) {
+  player->speed = PADDLE_SPEED;
+  player->time_step = 0;
+  player->dx = 0;
+  player->dy = 0;
+  player->fudge = 0;
+  player->h = PADDLE_H;
+  player->w = PADDLE_W;
+  player->x = player->owner == PLAYER ? PLAYER_X : ROBOT_X;
+  player->y = PADDLE_Y;
+}
 
 int get_fudge(void);
 int get_fudge(void) {
@@ -207,11 +221,13 @@ void change_ball_speed(Ball* ball, Paddle* player) {
   int sweet_spot_bottom = player->y + (player->h / 3) * 2;
 
   if (ball->y > sweet_spot_top && ball->y < sweet_spot_bottom) {
+    // ball is in sweet spot, increase its speed
     if (ball->speed < BALL_MAX_SPEED) {
       ball->speed += 10;
     }
   } else {
-    if (ball->speed > BALL_MIN_SPEED) {
+    // ball hit the paddle frame, decrease its speed
+    if (ball->speed >= BALL_MIN_SPEED) {
       ball->speed -= 10;
     }
   }
@@ -223,6 +239,7 @@ void check_collision(Ball* ball, Paddle* player) {
   int ball_left = ball->x;
   int ball_right = ball->x + ball->w;
   int ball_top = ball->y;
+  int ball_bottom = ball->y + ball->h;
 
   int paddle_left = player->x;
   int paddle_right = player->x + player->w;
@@ -230,12 +247,20 @@ void check_collision(Ball* ball, Paddle* player) {
   int paddle_bottom = player->y + player->h;
 
   bool collide_player = player->owner == PLAYER &&
-    ball_right > paddle_left && ball_right < paddle_right &&
-    ball_top > paddle_top && ball_top < paddle_bottom;
+    ball_right > paddle_left && 
+    ball_right < paddle_right &&
+    ball_top > paddle_top && 
+    ball_top < paddle_bottom &&
+    ball_bottom < paddle_bottom &&
+    ball_bottom > paddle_top;
 
   bool collide_robot = player->owner == ROBOT &&
-    ball_left < paddle_right && ball_left > paddle_left &&
-    ball_top > paddle_top && ball_top < paddle_bottom;
+    ball_left < paddle_right && 
+    ball_left > paddle_left &&
+    ball_top > paddle_top && 
+    ball_top < paddle_bottom &&
+    ball_bottom < paddle_bottom &&
+    ball_bottom > paddle_top;
 
   // shift the ball outside the paddle to prevent trapping it 
   // inside the paddle
@@ -267,9 +292,10 @@ void move_paddle(Paddle* paddle) {
   }
 }
 
-void serve_ball(Ball* ball);
-void serve_ball(Ball* ball) {
+void reset_ball(Ball* ball);
+void reset_ball(Ball* ball) {
   ball->service = ROBOT;
+  ball->speed = BALL_MIN_SPEED;
   ball->x = 0;
   ball->y = 0;
 
@@ -307,7 +333,7 @@ void move_ball(Ball* ball) {
   ball->x += ball->dx * ball->speed * ball->time_step;
   ball->y += ball->dy * ball->speed * ball->time_step;
   // bounce off top and bottom
-  if (ball->y < 0 || ball->y > SCREEN_HEIGHT) {
+  if (ball->y < 0 || ball->y + ball->h > SCREEN_HEIGHT) {
     ball->dy *= -1;
   }
 }
@@ -338,6 +364,39 @@ void draw_score(App* app, ScoreBoard* score_board) {
     app->renderer, fps_texture, NULL, &renderQuad, 0, NULL, SDL_FLIP_NONE);
   SDL_DestroyTexture(fps_texture);
   fps_texture = NULL;
+}
+
+void draw_instructions(App* app, TTF_Font* font);
+void draw_instructions(App* app, TTF_Font* font) {
+
+  TTF_SetFontSize(font, 36);
+  char instruction_text[SCREEN_INSTRUCTIONS_BUF_SIZE];
+  SDL_Color score_color = { .r = 255, .g = 255, .b = 255, .a = 255 };
+
+  snprintf(instruction_text,
+    SCREEN_INSTRUCTIONS_BUF_SIZE,
+    "PRESS SPACEBAR TO BEGIN\nR TO RESET\nESCAPE TO QUIT");
+
+  SDL_Surface* instruction_surface =
+    TTF_RenderUTF8_Blended_Wrapped(font, instruction_text, score_color, 0);
+  SDL_Texture* instruction_texture =
+    SDL_CreateTextureFromSurface(app->renderer, instruction_surface);
+
+  int w = instruction_surface->w;
+  int h = instruction_surface->h;
+
+  // TTF_SizeUTF8(font, instruction_text, &w, &h);
+  SDL_FreeSurface(instruction_surface);
+  instruction_surface = NULL;
+
+  int text_x = (SCREEN_WIDTH - w) / 2;
+  int text_y = SCREEN_MID_H - h / 2;
+
+  SDL_Rect renderQuad = { text_x, text_y, w, h };
+  SDL_RenderCopyEx(
+    app->renderer, instruction_texture, NULL, &renderQuad, 0, NULL, SDL_FLIP_NONE);
+  SDL_DestroyTexture(instruction_texture);
+  instruction_texture = NULL;
 }
 
 void draw_net(App* app);
@@ -388,7 +447,6 @@ int main(int argc, char* argv[]) {
     return EXIT_FAILURE;
   }
 
-  //Open the fonts
   TTF_Font* fps_font =
     TTF_OpenFont("../assets/Inconsolata-Regular.ttf", 14);
   if (fps_font == NULL) {
@@ -400,9 +458,9 @@ int main(int argc, char* argv[]) {
   Uint32 cap_ticks = 0;
   Uint32 frame_ticks = 0;
 
-  ScoreBoard score_board = { .player = 0, .robot = 0 };
+  ScoreBoard score_board = { .idle = true, .player = 18, .robot = 18 };
 
-  score_board.font =
+  TTF_Font* score_font =
     TTF_OpenFont("../assets/VT323-Regular.ttf", 40);
   if (fps_font == NULL) {
     SDL_LogError(LOGCAT,
@@ -410,38 +468,24 @@ int main(int argc, char* argv[]) {
       TTF_GetError());
   }
 
+  score_board.font = score_font;
+
   Ball ball = { 0 };
-  serve_ball(&ball);
-  ball.speed = BALL_MIN_SPEED;
+  reset_ball(&ball);
+  // ball.speed = BALL_MIN_SPEED;
 
-  Paddle player = {
-    .owner = PLAYER,
-    .speed = PADDLE_SPEED,
-    .time_step = 0,
-    .dx = 0,
-    .dy = 0,
-    .fudge = 0,
-    .h = PADDLE_H,
-    .w = PADDLE_W,
-    .x = PLAYER_X,
-    .y = PADDLE_Y
-  };
+  Paddle player = { 0 };
+  player.owner = PLAYER;
+  reset_paddle(&player);
 
-  Paddle robot = {
-    .owner = ROBOT,
-    .speed = PADDLE_SPEED,
-    .time_step = 0,
-    .dx = 0,
-    .dy = 0,
-    .fudge = 0,
-    .h = PADDLE_H,
-    .w = PADDLE_W,
-    .x = ROBOT_X,
-    .y = PADDLE_Y
-  };
+  Paddle robot = { 0 };
+  robot.owner = ROBOT;
+  reset_paddle(&robot);
 
   SDL_Event e;
   bool running = true;
+  bool game_over = false;
+  bool game_idle = true;
   int frame_count = 0;
   Uint32 fps_ticks = SDL_GetTicks();
   Uint32 step_ticks = 0;
@@ -458,11 +502,41 @@ int main(int argc, char* argv[]) {
         case SDLK_ESCAPE:
           running = false;
           break;
+        case SDLK_SPACE:
+          score_board.player = 0;
+          score_board.robot = 0;
+          reset_paddle(&player);
+          reset_paddle(&robot);
+          reset_ball(&ball);
+          game_idle = false;
+          break;
+        case SDLK_r:
+          game_over = true;
+          game_idle = true;
+          break;
         default:
           break;
         }
       }
-      handle_input(&e, &player);
+      if (game_idle == false) {
+        handle_input(&e, &player);
+      }
+    }
+
+    // reset game
+    if (game_over) {
+      score_board.player = 0;
+      score_board.robot = 0;
+      reset_paddle(&player);
+      reset_paddle(&robot);
+      reset_ball(&ball);
+      // ball.speed = BALL_MIN_SPEED;
+      game_over = false;
+      game_idle = true;
+    }
+
+    if (game_idle) {
+      update_player(&ball, &player);
     }
 
     update_player(&ball, &robot);
@@ -487,22 +561,31 @@ int main(int argc, char* argv[]) {
     if (ball.x < 0) {
       // Player scored
       score_board.player++;
-      serve_ball(&ball);
-
-      // update defaults
-      ball.service = PLAYER;
-      ball.x = PLAYER_SERVICE_X;
-      ball.y = player.y + player.h / 2;
+      if (score_board.player >= MAX_SCORE) {
+        game_over = true;
+      } else {
+        reset_ball(&ball);
+        // update defaults
+        ball.service = PLAYER;
+        ball.x = PLAYER_SERVICE_X;
+        ball.y = player.y + player.h / 2;
+      }
     }
+
     if (ball.x > SCREEN_WIDTH) {
       // Robot scored
       score_board.robot++;
-      serve_ball(&ball);
-
-      // update defaults
-      ball.service = ROBOT;
-      ball.x = ROBOT_SERVICE_X;
-      ball.y = robot.y + player.h / 2;
+      if (score_board.robot >= MAX_SCORE) {
+        game_over = true;
+      } else {
+        reset_ball(&ball);
+        // give the robot a little advantage...
+        // ball.speed = ball.speed < BALL_MAX_SPEED ? ball.speed + 5 : BALL_MAX_SPEED;
+        // update defaults
+        ball.service = ROBOT;
+        ball.x = ROBOT_SERVICE_X;
+        ball.y = robot.y + player.h / 2;
+      }
     }
 
     //Clear screen
@@ -511,6 +594,9 @@ int main(int argc, char* argv[]) {
 
     draw_net(app);
     draw_score(app, &score_board);
+    if (game_idle) {
+      draw_instructions(app, score_font);
+    }
 
     // draw player paddle
     SDL_SetRenderDrawColor(app->renderer, 0xFF, 0xFF, 0xFF, 0xFF);
