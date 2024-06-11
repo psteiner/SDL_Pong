@@ -57,13 +57,13 @@ App* init(void) {
   return app;
 }
 
-void reset_game(Game* game, Paddle* player, Paddle* robot, Ball* ball) {
+void reset_game(Game* game) {
   game->score_board.player = 0;
   game->score_board.robot = 0;
   game->winner = game->over ? game->winner : NOBODY;
-  reset_paddle(player);
-  reset_paddle(robot);
-  reset_ball(ball, BALL_MIN_SPEED);
+  reset_paddle(&game->player);
+  reset_paddle(&game->robot);
+  reset_ball(&game->ball);
   game->idle = true;
   game->over = false;
 }
@@ -219,9 +219,9 @@ void move_paddle(Paddle* paddle) {
   }
 }
 
-void reset_ball(Ball* ball, int speed) {
+void reset_ball(Ball* ball) {
   ball->service = ROBOT;
-  ball->speed = speed ? speed : BALL_MIN_SPEED;
+  ball->speed = ball->speed < BALL_MIN_SPEED ? BALL_MIN_SPEED : ball->speed;
   ball->x = 0;
   ball->y = 0;
 
@@ -292,11 +292,11 @@ void draw_score(App* app, ScoreBoard* score_board) {
 }
 
 void draw_instructions(App* app, Game* game) {
-
   TTF_SetFontSize(game->score_board.font, 36);
-  char* player_wins_text = "YOU WIN!!!\n\n";
+  char* player_wins_text = "YAY!!! YOU WIN!!! :)\n\n";
   char* robot_wins_text = "AWWW!!! ROBOT WINS :(\n\n";
-  char* instruction_text = "PRESS SPACEBAR TO BEGIN\nR TO RESET\nESCAPE TO QUIT";
+  char* instruction_text = 
+    "PRESS SPACEBAR TO BEGIN\nPRESS R TO RESET\nPRESS ESCAPE TO QUIT";
 
   char output_text[SCREEN_INSTRUCTIONS_BUF_SIZE];
   if (game->winner == PLAYER) {
@@ -390,49 +390,50 @@ int main(int argc, char* argv[]) {
     return EXIT_FAILURE;
   }
 
-  TTF_Font* fps_font =
+  TTF_Font* stats_font =
     TTF_OpenFont("../assets/Inconsolata-Regular.ttf", 14);
-  if (fps_font == NULL) {
+  if (stats_font == NULL) {
     SDL_LogError(LOGCAT,
       "Failed to load font! SDL_ttf Error: %s\n",
       TTF_GetError());
   }
 
-  Uint32 cap_ticks = 0;
-  Uint32 frame_ticks = 0;
-
   TTF_Font* score_font =
     TTF_OpenFont("../assets/VT323-Regular.ttf", 40);
-  if (fps_font == NULL) {
+  if (score_font == NULL) {
     SDL_LogError(LOGCAT,
       "Failed to load font! SDL_ttf Error: %s\n",
       TTF_GetError());
   }
 
   Game game = {
-    .score_board = {.font = score_font, .player = 19, .robot = 19 },
+    .score_board = {.font = score_font, .player = 0, .robot = 0 },
     .winner = NOBODY,
+    .player = {0},
+    .robot = {0},
+    .ball = {0},
     .running = true,
     .idle = true,
     .over = false,
   };
 
-  Ball ball = { 0 };
-  reset_ball(&ball, BALL_MIN_SPEED);
+  // Paddle player = { 0 };
+  game.player.owner = PLAYER;
+  reset_paddle(&game.player);
 
-  Paddle player = { 0 };
-  player.owner = PLAYER;
-  reset_paddle(&player);
+  // Paddle robot = { 0 };
+  game.robot.owner = ROBOT;
+  reset_paddle(&game.robot);
 
-  Paddle robot = { 0 };
-  robot.owner = ROBOT;
-  reset_paddle(&robot);
+  // Ball ball = { 0 };
+  reset_ball(&game.ball);
 
   SDL_Event e;
-
   int frame_count = 0;
-  Uint32 fps_ticks = SDL_GetTicks();
+  Uint32 frame_ticks = 0;
+  Uint32 cap_ticks = 0;
   Uint32 step_ticks = 0;
+  Uint32 fps_ticks = SDL_GetTicks();
 
   while (game.running) {
     cap_ticks = SDL_GetTicks();
@@ -447,77 +448,77 @@ int main(int argc, char* argv[]) {
           game.running = false;
           break;
         case SDLK_SPACE:
-          reset_game(&game, &player, &robot, &ball);
+          reset_game(&game);
           game.idle = false;
           break;
         case SDLK_r:
-          reset_game(&game, &player, &robot, &ball);
+          reset_game(&game);
           break;
         default:
           break;
         }
       }
       if (game.idle == false) {
-        handle_input(&e, &player);
+        handle_input(&e, &game.player);
       }
     }
 
     // reset game
     if (game.over) {
-      reset_game(&game, &player, &robot, &ball);
+      reset_game(&game);
     }
 
     if (game.idle) {
       // let AI control player paddle
-      update_player(&ball, &player);
+      update_player(&game.ball, &game.player);
     }
 
-    update_player(&ball, &robot);
+    update_player(&game.ball, &game.robot);
 
-    check_collision(&ball, &player);
-    check_collision(&ball, &robot);
+    check_collision(&game.ball, &game.player);
+    check_collision(&game.ball, &game.robot);
 
     double time_step = (SDL_GetTicks() - step_ticks) / 1000.f;
-    ball.time_step = time_step;
-    player.time_step = time_step;
-    robot.time_step = time_step;
+    game.ball.time_step = time_step;
+    game.player.time_step = time_step;
+    game.robot.time_step = time_step;
 
-    move_paddle(&player);
-    move_paddle(&robot);
+    move_paddle(&game.player);
+    move_paddle(&game.robot);
 
     // move ball
-    move_ball(&ball);
+    move_ball(&game.ball);
 
     step_ticks = SDL_GetTicks();
 
     // check for score
-    if (ball.x < 0) {
+    if (game.ball.x < 0) {
       // Player scored
       game.score_board.player++;
       if (game.score_board.player >= MAX_SCORE) {
         game.over = true;
         game.winner = PLAYER;
       } else {
-        reset_ball(&ball, ball.speed);
+        reset_ball(&game.ball);
         // update defaults
-        ball.service = PLAYER;
-        ball.x = PLAYER_SERVICE_X;
-        ball.y = player.y + player.h / 2;
+        game.ball.service = PLAYER;
+        game.ball.x = PLAYER_SERVICE_X;
+        game.ball.y = game.player.y + game.player.h / 2;
       }
     }
 
-    if (ball.x > SCREEN_WIDTH) {
+    if (game.ball.x > SCREEN_WIDTH) {
       // Robot scored
       game.score_board.robot++;
       if (game.score_board.robot >= MAX_SCORE) {
         game.over = true;
         game.winner = ROBOT;
       } else {
-        reset_ball(&ball, ball.speed);
+        reset_ball(&game.ball);
         // update defaults
-        ball.service = ROBOT;
-        ball.x = ROBOT_SERVICE_X;
-        ball.y = robot.y + player.h / 2;
+        game.ball.service = ROBOT;
+        game.ball.x = ROBOT_SERVICE_X;
+        game.ball.y = game.robot.y + game.robot.h / 2;
       }
     }
 
@@ -531,24 +532,29 @@ int main(int argc, char* argv[]) {
       draw_instructions(app, &game);
     }
 
-    // draw player paddle
     SDL_SetRenderDrawColor(app->renderer, 0xFF, 0xFF, 0xFF, 0xFF);
-    SDL_Rect player_rect =
-    { .h = player.h, .w = player.w, .x = player.x, .y = player.y };
+    // draw player paddle
+    SDL_Rect player_rect = {
+      .h = game.player.h, .w = game.player.w,
+      .x = game.player.x, .y = game.player.y
+    };
+    SDL_RenderFillRect(app->renderer, &player_rect);
 
     // draw robot paddle
-    SDL_RenderFillRect(app->renderer, &player_rect);
-    SDL_Rect robot_rect =
-    { .h = robot.h, .w = robot.w, .x = robot.x, .y = robot.y };
+    SDL_Rect robot_rect = {
+      .h = game.robot.h, .w = game.robot.w,
+      .x = game.robot.x, .y = game.robot.y
+    };
     SDL_RenderFillRect(app->renderer, &robot_rect);
 
     // draw ball
-    SDL_Rect ball_rect =
-    { .h = ball.h, .w = ball.w, .x = ball.x, .y = ball.y };
-    SDL_SetRenderDrawColor(app->renderer, 0xFF, 0xFF, 0xFF, 0xFF);
+    SDL_Rect ball_rect = {
+      .h = game.ball.h, .w = game.ball.w,
+      .x = game.ball.x, .y = game.ball.y
+    };
     SDL_RenderFillRect(app->renderer, &ball_rect);
 
-    draw_stats(app, frame_count, fps_ticks, fps_font, &ball);
+    draw_stats(app, frame_count, fps_ticks, stats_font, &game.ball);
 
     // Update screen
     SDL_RenderPresent(app->renderer);
@@ -561,7 +567,7 @@ int main(int argc, char* argv[]) {
     }
   }
 
-  TTF_CloseFont(fps_font);
+  TTF_CloseFont(stats_font);
   TTF_CloseFont(game.score_board.font);
   SDL_DestroyRenderer(app->renderer);
   SDL_DestroyWindow(app->window);

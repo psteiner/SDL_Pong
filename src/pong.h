@@ -92,13 +92,16 @@ typedef struct Game Game;
 struct Game {
   ScoreBoard score_board;
   Player winner;
+  Paddle player;
+  Paddle robot;
+  Ball ball;
   bool running;
   bool idle;
   bool over;
 };
 
 App* init(void);
-void reset_game(Game* game, Paddle* player, Paddle* robot, Ball* ball);
+void reset_game(Game* game);
 void handle_input(SDL_Event* e, Paddle* paddle);
 void reset_paddle(Paddle* paddle);
 int get_fudge(void);
@@ -106,7 +109,7 @@ void update_player(Ball* ball, Paddle* paddle);
 void apply_english(Ball* ball, Paddle* paddle);
 void check_collision(Ball* ball, Paddle* paddle);
 void move_paddle(Paddle* paddle);
-void reset_ball(Ball* ball, int speed);
+void reset_ball(Ball* ball);
 void move_ball(Ball* ball);
 void draw_score(App* app, ScoreBoard* score_board);
 void draw_instructions(App* app, Game* game);
