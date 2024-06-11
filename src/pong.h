@@ -33,8 +33,8 @@
 #define PLAYER_X SCREEN_WIDTH - PADDLE_W - GOAL_OFFSET
 #define ROBOT_X GOAL_OFFSET
 //                        | -1 |  BS  |   PW   |   GO   ||<- Screen Width
-#define PLAYER_SERVICE_X (SCREEN_WIDTH - GOAL_OFFSET - PADDLE_W - BALL_SIZE) - 1
-#define ROBOT_SERVICE_X (PADDLE_W + GOAL_OFFSET) + 1
+#define PLAYER_SERVICE_X SCREEN_WIDTH - GOAL_OFFSET - PADDLE_W - BALL_SIZE - 1
+#define ROBOT_SERVICE_X PADDLE_W + GOAL_OFFSET + 1
 
 #define MAX_SCORE 20
 
@@ -65,6 +65,8 @@ struct Ball {
   int w;
   double time_step;
   Player service;
+  Mix_Chunk* wall_sound;
+  Mix_Chunk* paddle_sound;
 };
 
 typedef struct Paddle Paddle;
@@ -101,6 +103,8 @@ struct Game {
   Uint32 step_ticks;
   Uint32 fps_ticks;
   TTF_Font* stats_font;
+  Mix_Chunk* point_sound;
+  bool play_sounds;
   bool running;
   bool idle;
   bool over;
@@ -121,5 +125,7 @@ void draw_score(App* app, ScoreBoard* score_board);
 void draw_instructions(App* app, Game* game);
 void draw_court(App* app);
 void draw_stats(App* app, Game* game);
+void play_sound(Mix_Chunk* sound);
+void load_sounds(Game* game);
 
 #endif

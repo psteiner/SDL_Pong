@@ -139,6 +139,7 @@ void check_collision(Ball* ball, Paddle* paddle) {
 
   // bounce the ball off the paddle
   if (collided) {
+    play_sound(ball->paddle_sound);
     ball->dx *= -1;
     ball->fudge = get_fudge();
     // give player a chance to change the ball speed
@@ -148,15 +149,11 @@ void check_collision(Ball* ball, Paddle* paddle) {
 
 void apply_english(Ball* ball, Paddle* paddle) {
   // rand() % n == 0 is true n-1/n times, i.e. 5/6
-  int skip = rand() % 6;
-  if (skip == 0) {
-    SDL_LogDebug(LOGCAT, "skipped english");
+  if (rand() % 6 == 0) {
     return;
   }
   // reset segment id
   ball->paddle_segment = 0;
-  double dy_before = ball->dy;
-  int ball_speed_before = ball->speed;
 
   // divide paddle into 5 sections, apply angle and/or speed change
   // for each section
@@ -174,9 +171,6 @@ void apply_english(Ball* ball, Paddle* paddle) {
   bool hit_s4 = ball_top >= paddle_s3 && ball_top <= paddle_s4;
   bool hit_s5 = ball_top >= paddle_s4 && ball_top <= paddle_bottom;
 
-  SDL_LogDebug(LOGCAT, "s1:%d s2:%d s3:%d s4:%d s5:%d",
-    hit_s1, hit_s2, hit_s3, hit_s4, hit_s5);
-
   if (hit_s1) {
     ball->dy -= 2;
     ball->paddle_segment = 1;
@@ -189,8 +183,6 @@ void apply_english(Ball* ball, Paddle* paddle) {
     if (ball->speed < BALL_MAX_SPEED) {
       ball->speed += 10;
     }
-    SDL_LogDebug(LOGCAT, "ball->speed before:%2d after:%2d",
-      ball_speed_before, ball->speed);
     ball->paddle_segment = 3;
   }
   if (hit_s4) {
@@ -202,9 +194,6 @@ void apply_english(Ball* ball, Paddle* paddle) {
     ball->dy += 2;
     ball->paddle_segment = 5;
   }
-
-  SDL_LogDebug(LOGCAT, "segment: %d | ball->dy before:%2.f after:%2.f",
-    ball->paddle_segment, dy_before, ball->dy);
 }
 
 
@@ -219,7 +208,7 @@ void move_paddle(Paddle* paddle) {
 }
 
 void reset_ball(Ball* ball) {
-  ball->service = ROBOT;
+  ball->service = ball->service != NOBODY ? ball->service : ROBOT;
   ball->speed = ball->speed < BALL_MIN_SPEED ? BALL_MIN_SPEED : ball->speed;
   ball->x = 0;
   ball->y = 0;
@@ -259,6 +248,7 @@ void move_ball(Ball* ball) {
   ball->y += ball->dy * ball->speed * ball->time_step;
   // bounce off top and bottom
   if (ball->y < 0 || ball->y + ball->h > SCREEN_HEIGHT) {
+    play_sound(ball->wall_sound);
     ball->dy *= -1;
   }
 }
@@ -294,10 +284,13 @@ void draw_instructions(App* app, Game* game) {
   TTF_SetFontSize(game->score_board.font, 36);
   char* player_wins_text = "YAY!!! YOU WIN!!! :)\n\n";
   char* robot_wins_text = "AWWW!!! ROBOT WINS :(\n\n";
-  char* instruction_text = 
-    "PRESS SPACEBAR TO BEGIN\nPRESS R TO RESET\nPRESS ESCAPE TO QUIT";
+  char* instruction_text =
+    "PRESS SPACEBAR TO BEGIN\n" 
+    "PRESS R TO RESET\n"
+    "PRESS S TO TOGGLE BEEPS\n"
+    "PRESS ESCAPE TO QUIT";
 
-  char output_text[SCREEN_INSTRUCTIONS_BUF_SIZE];
+  char output_text[SCREEN_INSTRUCTIONS_BUF_SIZE] = "";
   if (game->winner == PLAYER) {
     strcat(output_text, player_wins_text);
   }
@@ -364,7 +357,7 @@ void draw_stats(App* app, Game* game) {
     "Avg FPS:%2.f Ball [dx:%2.f dy:%2.f] "
     "[x:%4.f y:%4.f] fudge:%2d speed: %d vel: %.f segment: %d",
     avg_fps, game->ball.dx, game->ball.dy,
-    game->ball.x, game->ball.y, game->ball.fudge, 
+    game->ball.x, game->ball.y, game->ball.fudge,
     game->ball.speed, velocity, game->ball.paddle_segment);
 
   SDL_Surface* fps_surface =
@@ -383,6 +376,24 @@ void draw_stats(App* app, Game* game) {
   fps_texture = NULL;
 }
 
+void load_sounds(Game* game) {
+  game->ball.paddle_sound = Mix_LoadWAV("../assets/paddle.wav");
+  if (game->ball.paddle_sound == NULL) {
+    SDL_LogError(LOGCAT, "Failed to load paddle.wav");
+  }
+  game->ball.wall_sound = Mix_LoadWAV("../assets/wall.wav");
+  if (game->ball.wall_sound == NULL) {
+    SDL_LogError(LOGCAT, "Failed to load wall.wav");
+  }
+  game->point_sound = Mix_LoadWAV("../assets/point.wav");
+  if (game->point_sound == NULL) {
+    SDL_LogError(LOGCAT, "Failed to load point.wav");
+  }
+}
+
+void play_sound(Mix_Chunk* sound) {
+  Mix_PlayChannel(-1, sound, 0);
+}
 
 int main(int argc, char* argv[]) {
   (void)argc, (void)argv;
@@ -417,10 +428,13 @@ int main(int argc, char* argv[]) {
     .robot = {0},
     .ball = {0},
     .stats_font = stats_font,
+    .play_sounds = true,
     .running = true,
     .idle = true,
     .over = false,
   };
+
+  load_sounds(&game);
 
   // Paddle player = { 0 };
   game.player.owner = PLAYER;
@@ -458,6 +472,9 @@ int main(int argc, char* argv[]) {
         case SDLK_r:
           reset_game(&game);
           break;
+        case SDLK_s:
+          game.play_sounds = !game.play_sounds;
+          break;
         default:
           break;
         }
@@ -465,6 +482,13 @@ int main(int argc, char* argv[]) {
       if (game.idle == false) {
         handle_input(&e, &game.player);
       }
+    }
+
+    // toggle sound effects
+    if (game.play_sounds) {
+      Mix_Volume(-1, MIX_MAX_VOLUME);
+    } else {
+      Mix_Volume(-1, 0);
     }
 
     // reset game
@@ -499,13 +523,13 @@ int main(int argc, char* argv[]) {
     if (game.ball.x < 0) {
       // Player scored
       game.score_board.player++;
+      play_sound(game.point_sound);
       if (game.score_board.player >= MAX_SCORE) {
         game.over = true;
         game.winner = PLAYER;
       } else {
-        reset_ball(&game.ball);
-        // update defaults
         game.ball.service = PLAYER;
+        reset_ball(&game.ball);
         game.ball.x = PLAYER_SERVICE_X;
         game.ball.y = game.player.y + game.player.h / 2;
       }
@@ -514,13 +538,13 @@ int main(int argc, char* argv[]) {
     if (game.ball.x > SCREEN_WIDTH) {
       // Robot scored
       game.score_board.robot++;
+      play_sound(game.point_sound);
       if (game.score_board.robot >= MAX_SCORE) {
         game.over = true;
         game.winner = ROBOT;
       } else {
-        reset_ball(&game.ball);
-        // update defaults
         game.ball.service = ROBOT;
+        reset_ball(&game.ball);
         game.ball.x = ROBOT_SERVICE_X;
         game.ball.y = game.robot.y + game.robot.h / 2;
       }
@@ -575,6 +599,9 @@ int main(int argc, char* argv[]) {
   TTF_CloseFont(game.score_board.font);
   SDL_DestroyRenderer(app->renderer);
   SDL_DestroyWindow(app->window);
+  Mix_FreeChunk(game.ball.wall_sound);
+  Mix_FreeChunk(game.ball.paddle_sound);
+  Mix_FreeChunk(game.point_sound);
   TTF_Quit();
   IMG_Quit();
   SDL_Quit();

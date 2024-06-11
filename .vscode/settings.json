@@ -5,7 +5,8 @@
     "math.h": "c",
     "stdlib.h": "c",
     "stdio.h": "c",
-    "pong.h": "c"
+    "pong.h": "c",
+    "sdl_mixer.h": "c"
   },
   "makefile.configurations": [
     {
