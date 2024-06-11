@@ -4,7 +4,8 @@
     "stdbool.h": "c",
     "math.h": "c",
     "stdlib.h": "c",
-    "stdio.h": "c"
+    "stdio.h": "c",
+    "pong.h": "c"
   },
   "makefile.configurations": [
     {
