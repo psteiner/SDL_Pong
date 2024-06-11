@@ -18,7 +18,7 @@
 #define COURT_OFFSIDE 20
 #define COURT_HEIGHT SCREEN_HEIGHT - COURT_OFFSIDE
 #define SCREEN_FPS_BUF_SIZE 100
-#define SCREEN_INSTRUCTIONS_BUF_SIZE 50
+#define SCREEN_INSTRUCTIONS_BUF_SIZE 100
 #define SCREEN_FPS 60
 #define SCREEN_TICKS_PER_FRAME 1000 / SCREEN_FPS
 
@@ -95,6 +95,12 @@ struct Game {
   Paddle player;
   Paddle robot;
   Ball ball;
+  int frame_count;
+  Uint32 frame_ticks;
+  Uint32 cap_ticks;
+  Uint32 step_ticks;
+  Uint32 fps_ticks;
+  TTF_Font* stats_font;
   bool running;
   bool idle;
   bool over;
@@ -114,6 +120,6 @@ void move_ball(Ball* ball);
 void draw_score(App* app, ScoreBoard* score_board);
 void draw_instructions(App* app, Game* game);
 void draw_court(App* app);
-void draw_stats(App* app, int frame_count, Uint32 fps_ticks, TTF_Font* fps_font, Ball* ball);
+void draw_stats(App* app, Game* game);
 
 #endif

@@ -4,7 +4,7 @@
 App* init(void) {
 
   srand(time(0));
-  // SDL_LOG_PRIORITY_INFO
+  // SDL_LOG_PRIORITY_INFO SDL_LOG_PRIORITY_DEBUG
   SDL_LogSetPriority(LOGCAT, SDL_LOG_PRIORITY_DEBUG);
 
   App* app = malloc(sizeof(App));
@@ -129,7 +129,6 @@ void update_player(Ball* ball, Paddle* paddle) {
 }
 
 void check_collision(Ball* ball, Paddle* paddle) {
-
   // see https://www.jeffreythompson.org/collision-detection/rect-rect.php
   // for explanation of this algorithm
   bool collided =
@@ -348,23 +347,28 @@ void draw_court(App* app) {
   SDL_RenderFillRect(app->renderer, &court_line);
 }
 
-void draw_stats(App* app, int frame_count, Uint32 fps_ticks, TTF_Font* fps_font, Ball* ball) {
+void draw_stats(App* app, Game* game) {
+  // only show stats for SDL_LOG_PRIORITY_DEBUG or SDL_LOG_PRIORITY_VERBOSE
+  if (SDL_LogGetPriority(LOGCAT) > SDL_LOG_PRIORITY_DEBUG) {
+    return;
+  }
   char fps_text[SCREEN_FPS_BUF_SIZE];
   SDL_Color fps_color = { .r = 255, .g = 255, .b = 0, .a = 255 };
 
-  double avg_fps = frame_count / ((SDL_GetTicks() - fps_ticks) / 1000.f);
+  double avg_fps = game->frame_count / ((SDL_GetTicks() - game->fps_ticks) / 1000.f);
   double velocity =
-    sqrt((ball->dx * ball->dx) + (ball->dy * ball->dy)) *
-    ball->speed;
+    sqrt((game->ball.dx * game->ball.dx) + (game->ball.dy * game->ball.dy)) *
+    game->ball.speed;
 
   snprintf(fps_text, SCREEN_FPS_BUF_SIZE,
     "Avg FPS:%2.f Ball [dx:%2.f dy:%2.f] "
     "[x:%4.f y:%4.f] fudge:%2d speed: %d vel: %.f segment: %d",
-    avg_fps, ball->dx, ball->dy,
-    ball->x, ball->y, ball->fudge, ball->speed, velocity, ball->paddle_segment);
+    avg_fps, game->ball.dx, game->ball.dy,
+    game->ball.x, game->ball.y, game->ball.fudge, 
+    game->ball.speed, velocity, game->ball.paddle_segment);
 
   SDL_Surface* fps_surface =
-    TTF_RenderText_Blended(fps_font, fps_text, fps_color);
+    TTF_RenderText_Blended(game->stats_font, fps_text, fps_color);
   SDL_Texture* fps_texture =
     SDL_CreateTextureFromSurface(app->renderer, fps_surface);
   int fps_w = fps_surface->w;
@@ -412,6 +416,7 @@ int main(int argc, char* argv[]) {
     .player = {0},
     .robot = {0},
     .ball = {0},
+    .stats_font = stats_font,
     .running = true,
     .idle = true,
     .over = false,
@@ -429,14 +434,13 @@ int main(int argc, char* argv[]) {
   reset_ball(&game.ball);
 
   SDL_Event e;
-  int frame_count = 0;
-  Uint32 frame_ticks = 0;
-  Uint32 cap_ticks = 0;
-  Uint32 step_ticks = 0;
-  Uint32 fps_ticks = SDL_GetTicks();
+  game.frame_count = 0;
+  game.cap_ticks = 0;
+  game.step_ticks = 0;
+  game.fps_ticks = SDL_GetTicks();
 
   while (game.running) {
-    cap_ticks = SDL_GetTicks();
+    game.cap_ticks = SDL_GetTicks();
 
     while (SDL_PollEvent(&e)) {
       if (e.type == SDL_QUIT) {
@@ -478,7 +482,7 @@ int main(int argc, char* argv[]) {
     check_collision(&game.ball, &game.player);
     check_collision(&game.ball, &game.robot);
 
-    double time_step = (SDL_GetTicks() - step_ticks) / 1000.f;
+    double time_step = (SDL_GetTicks() - game.step_ticks) / 1000.f;
     game.ball.time_step = time_step;
     game.player.time_step = time_step;
     game.robot.time_step = time_step;
@@ -489,7 +493,7 @@ int main(int argc, char* argv[]) {
     // move ball
     move_ball(&game.ball);
 
-    step_ticks = SDL_GetTicks();
+    game.step_ticks = SDL_GetTicks();
 
     // check for score
     if (game.ball.x < 0) {
@@ -554,16 +558,16 @@ int main(int argc, char* argv[]) {
     };
     SDL_RenderFillRect(app->renderer, &ball_rect);
 
-    draw_stats(app, frame_count, fps_ticks, stats_font, &game.ball);
+    draw_stats(app, &game);
 
     // Update screen
     SDL_RenderPresent(app->renderer);
-    ++frame_count;
+    ++game.frame_count;
 
     // Cap frame rate
-    frame_ticks = SDL_GetTicks() - cap_ticks;
-    if (frame_ticks < SCREEN_TICKS_PER_FRAME) {
-      SDL_Delay(SCREEN_TICKS_PER_FRAME - frame_ticks);
+    game.frame_ticks = SDL_GetTicks() - game.cap_ticks;
+    if (game.frame_ticks < SCREEN_TICKS_PER_FRAME) {
+      SDL_Delay(SCREEN_TICKS_PER_FRAME - game.frame_ticks);
     }
   }
 
