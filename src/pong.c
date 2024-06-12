@@ -1,13 +1,21 @@
 // SDL2 Pong Game
 #include "pong.h"
 
+/*  ----------------------------------------------------------------------
+    Description: initialize SDL systems and set logging level.
+    Parameters: none
+    Returns: App object containing initialized SDL_Window and SDL_Renderer
+    objects.
+*/
 App* init(void) {
 
   srand(time(0));
-  // SDL_LOG_PRIORITY_INFO SDL_LOG_PRIORITY_DEBUG
-  SDL_LogSetPriority(LOGCAT, SDL_LOG_PRIORITY_DEBUG);
 
   App* app = malloc(sizeof(App));
+
+  app->log_priority = SDL_LOG_PRIORITY_INFO;
+   
+  SDL_LogSetPriority(LOGCAT, app->log_priority);
 
   if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO) < 0) {
     fprintf(stderr, "Could not initialize SDL2: %s\n", SDL_GetError());
@@ -57,6 +65,64 @@ App* init(void) {
   return app;
 }
 
+/*  ---------------------------------------------------------------------- 
+    Description: Toggle SDL logging priority between SDL_LOG_PRIORITY_INFO
+    and SDL_LOG_PRIORITY_DEBUG
+    Parameters: 
+      App* app: pointer to App object
+    Returns: none
+    ---------------------------------------------------------------------- */
+void set_log_priority(App* app) {
+  if (app->log_priority == SDL_LOG_PRIORITY_INFO) {
+    app->log_priority = SDL_LOG_PRIORITY_DEBUG;
+  } else {
+    app->log_priority = SDL_LOG_PRIORITY_INFO;
+  }
+  SDL_LogSetPriority(LOGCAT, app->log_priority);
+}
+
+/*  ---------------------------------------------------------------------- 
+    Description: Load WAV sound assets
+    Parameters: Game object
+    Returns: none
+    ---------------------------------------------------------------------- */
+void load_sounds(Game* game) {
+  game->ball.paddle_sound = Mix_LoadWAV("../assets/paddle.wav");
+  if (game->ball.paddle_sound == NULL) {
+    SDL_LogError(LOGCAT, "Failed to load paddle.wav");
+  }
+  game->ball.wall_sound = Mix_LoadWAV("../assets/wall.wav");
+  if (game->ball.wall_sound == NULL) {
+    SDL_LogError(LOGCAT, "Failed to load wall.wav");
+  }
+  game->point_sound = Mix_LoadWAV("../assets/point.wav");
+  if (game->point_sound == NULL) {
+    SDL_LogError(LOGCAT, "Failed to load point.wav");
+  }
+}
+
+/*  ---------------------------------------------------------------------- 
+    Description: load ttf font from specified file at specified size
+    Parameters: 
+      char* path: path to TTF font file
+      int size:   display size of font in pixels
+    Returns: TTF_font* pointer to font object
+    ---------------------------------------------------------------------- */
+TTF_Font* load_font(char* path, int size) {
+  TTF_Font* font = TTF_OpenFont(path, size);
+  if (font == NULL) {
+    SDL_LogError(LOGCAT,
+      "Failed to load font '%s'! SDL_ttf Error: %s\n",
+      path, TTF_GetError());
+  }
+  return font;
+}
+
+/*  ---------------------------------------------------------------------- 
+    Description: Reset Game object to defaults for new game
+    Parameters: Game* game - game object
+    Returns: none
+    ---------------------------------------------------------------------- */
 void reset_game(Game* game) {
   game->score_board.player = 0;
   game->score_board.robot = 0;
@@ -69,6 +135,91 @@ void reset_game(Game* game) {
   game->over = false;
 }
 
+/*  ---------------------------------------------------------------------- 
+    Description: Reset specified Paddle object to defaults for given Player
+    Parameters: 
+      Paddle* paddle: pointer to player paddle
+      Player* owner: owner of paddle (either PLAYER or ROBOT), 
+      determines x position of paddle on court
+    Returns: none
+    ---------------------------------------------------------------------- */
+void reset_paddle(Paddle* paddle, Player owner) {
+  paddle->owner = owner;
+  paddle->speed = PADDLE_SPEED;
+  paddle->time_step = 0;
+  paddle->dx = 0;
+  paddle->dy = 0;
+  paddle->fudge = 0;
+  paddle->h = PADDLE_H;
+  paddle->w = PADDLE_W;
+  paddle->x = paddle->owner == PLAYER ? PLAYER_X : ROBOT_X;
+  paddle->y = PADDLE_Y;
+}
+
+/*  ---------------------------------------------------------------------- 
+    Description: Reset Ball object to defaults. Sets the ball's initial
+    dx, dy and 'fudge' to random values within a specified range.
+    Parameters:   
+      Ball* ball: ball object
+      Player server: player serving ball, determines the position and direction
+      of the ball for service.
+    Returns: none
+    ---------------------------------------------------------------------- */
+void reset_ball(Ball* ball, Player server) {
+  ball->service = server;
+  ball->speed = ball->speed < BALL_MIN_SPEED ? BALL_MIN_SPEED : ball->speed;
+  ball->x = 0;
+  ball->y = 0;
+
+  /*
+    Service angle adjustment
+    a % b:	the remainder of a divided by b
+    rand() % n      ->  0 to n-1
+    rand() % 7      ->  0 to 6
+    rand() % 7 - 3  -> -3 to 3
+    rand() % 9 - 4  -> -4 to 4
+  */
+
+  do {
+    ball->dy = rand() % 7 - 3;
+  } while (ball->dy == 0);
+
+  // rand() % 4:     0 to 3
+  // rand() % 4 + 2: 2 to 5
+  ball->dx = rand() % 4 + 2;
+  if (ball->service == PLAYER) {
+    ball->dx *= -1;
+  }
+
+  ball->fudge = get_fudge();
+  ball->paddle_segment = 0;
+
+  ball->time_step = 0;
+  ball->x = ball->service == ROBOT ? ROBOT_SERVICE_X : PLAYER_SERVICE_X;
+  ball->y = SCREEN_MID_H - BALL_SIZE / 2;
+  ball->h = BALL_SIZE;
+  ball->w = BALL_SIZE;
+}
+
+/*  ---------------------------------------------------------------------- 
+    Description: Generate a random 'fudge' value between 0 and 14 
+    that affects a paddle's movement speed, either increasing or decreasing 
+    the paddle's y axis motion
+    Parameters: none
+    Returns: int fudge value
+    ---------------------------------------------------------------------- */
+int get_fudge(void) {
+  return rand() % 15;
+}
+
+/*  ---------------------------------------------------------------------- 
+    Description: Handle Up and Down key presses for player paddle motion. 
+    Paddle moves as long as key is held down. 
+    Parameters: 
+      SDL_Event* e: pointer to SDL Event object
+      Paddle* paddle: pointer to player paddle object
+    Returns: none
+    ---------------------------------------------------------------------- */
 void handle_input(SDL_Event* e, Paddle* paddle) {
   if (e->type == SDL_KEYDOWN && e->key.repeat == 0) {
     // Move the sprite as long as the key is down
@@ -94,23 +245,17 @@ void handle_input(SDL_Event* e, Paddle* paddle) {
   }
 }
 
-void reset_paddle(Paddle* paddle, Player owner) {
-  paddle->owner = owner;
-  paddle->speed = PADDLE_SPEED;
-  paddle->time_step = 0;
-  paddle->dx = 0;
-  paddle->dy = 0;
-  paddle->fudge = 0;
-  paddle->h = PADDLE_H;
-  paddle->w = PADDLE_W;
-  paddle->x = paddle->owner == PLAYER ? PLAYER_X : ROBOT_X;
-  paddle->y = PADDLE_Y;
-}
-
-int get_fudge(void) {
-  return rand() % 15;
-}
-
+/*  ---------------------------------------------------------------------- 
+    Description: Updates the paddle oject's dy value to move the paddle 
+    toward the game ball's position. The dy value is set to the paddle speed 
+    minus the 'fudge' factor, which may speed up or slow down the paddle.
+    Called by the Robot paddle when in play state. Called by both player and
+    robot paddles when game is in Idle state, to simulate a game.
+    Parameters: 
+      Ball* ball: the game ball
+      Paddle* paddle: the paddle object
+    Returns: none
+    ---------------------------------------------------------------------- */
 void update_player(Ball* ball, Paddle* paddle) {
   int paddle_top = paddle->y;
   int paddle_bottom = paddle->y + paddle->h;
@@ -130,9 +275,21 @@ void update_player(Ball* ball, Paddle* paddle) {
   }
 }
 
+/*  ---------------------------------------------------------------------- 
+    Description: Check for collision between the ball and the given paddle.
+    See https://www.jeffreythompson.org/collision-detection/rect-rect.php
+    for an explanation of collision algorithm.
+    If a collision is detected:
+      - play the paddle sound
+      - flip the ball's dx so it rebounds from the paddle
+      - update the ball's 'fudge' factor for the next collision
+      - call apply_english() to change the ball's speed or angle of return
+    Parameters:
+      Ball* ball: pointer to game ball object
+      Paddle* paddle: pointer to player paddle
+    Returns: none
+    ---------------------------------------------------------------------- */
 void check_collision(Ball* ball, Paddle* paddle) {
-  // see https://www.jeffreythompson.org/collision-detection/rect-rect.php
-  // for explanation of this algorithm
   bool collided =
     ball->x + ball->w >= paddle->x &&   // ball right edge past paddle left edge
     ball->x <= paddle->x + paddle->w && // ball left edge past paddle right edge
@@ -149,6 +306,23 @@ void check_collision(Ball* ball, Paddle* paddle) {
   }
 }
 
+/*  ---------------------------------------------------------------------- 
+    Description: Applies 'English' to the ball on rebound from the paddle.
+    Calculates a value based on which of 5 segments the ball makes contact:
+      - For the outermost segments 1 and 5 the ball's dy value is increased by 2.
+      - For the inner segments 2 and 4 the ball's dy value is increased by 1.
+      - For the middle segment 3 the ball's speed is increased by 10, up to 
+        BALL_MAX_SPEED.
+    Parameters:
+      Ball* ball: pointer to game ball object
+      Paddle* paddle: pointer to player paddle
+    Returns: none
+
+    'paddle_segment' is only used for display in the stats string
+
+    By a random 1 in 6 chance the function may return early without 
+    changing the ball.
+    ---------------------------------------------------------------------- */
 void apply_english(Ball* ball, Paddle* paddle) {
   // rand() % n == 0 is true n-1/n times, i.e. 5/6
   if (rand() % 6 == 0) {
@@ -198,7 +372,15 @@ void apply_english(Ball* ball, Paddle* paddle) {
   }
 }
 
-
+/*  ---------------------------------------------------------------------- 
+    Description: Move the paddle up or down within the bounds of the court,
+    COURT_OFFSIDE at the top edge, or COURT_HEIGHT at the bottom edge. This
+    creates a buffer area at top and bottom of the court (delineated by white
+    lines) that allows the ball to occasionally sneak past the paddle. 
+    Parameters: 
+      Paddle* paddle: pointer to player paddle
+    Returns: none
+    ---------------------------------------------------------------------- */
 void move_paddle(Paddle* paddle) {
   paddle->y += paddle->dy * paddle->speed * paddle->time_step;
   if (paddle->y < COURT_OFFSIDE) {
@@ -209,42 +391,16 @@ void move_paddle(Paddle* paddle) {
   }
 }
 
-void reset_ball(Ball* ball, Player server) {
-  ball->service = server;
-  ball->speed = ball->speed < BALL_MIN_SPEED ? BALL_MIN_SPEED : ball->speed;
-  ball->x = 0;
-  ball->y = 0;
-
-  /*
-    Service angle adjustment
-    a % b:	the remainder of a divided by b
-    rand() % n      ->  0 to n-1
-    rand() % 7      ->  0 to 6
-    rand() % 7 - 3  -> -3 to 3
-    rand() % 9 - 4  -> -4 to 4
-  */
-
-  do {
-    ball->dy = rand() % 7 - 3;
-  } while (ball->dy == 0);
-
-  // rand() % 4:     0 to 3
-  // rand() % 4 + 2: 2 to 5
-  ball->dx = rand() % 4 + 2;
-  if (ball->service == PLAYER) {
-    ball->dx *= -1;
-  }
-
-  ball->fudge = get_fudge();
-  ball->paddle_segment = 0;
-
-  ball->time_step = 0;
-  ball->x = ball->service == ROBOT ? ROBOT_SERVICE_X : PLAYER_SERVICE_X;
-  ball->y = SCREEN_MID_H - BALL_SIZE / 2;
-  ball->h = BALL_SIZE;
-  ball->w = BALL_SIZE;
-}
-
+/*  ---------------------------------------------------------------------- 
+    Description: Update the ball's x and y position to move it across the court.
+    The new positions are the product of the ball's dx, speed and the time_step
+    which adjusts the dx and speed to consitent frame independent motion.
+    If the ball's position intersects the court wall, the wall sound is played
+    and the ball's dy value is flipped so that it rebounds from the court wall.
+    Parameters: 
+      Ball* ball: pointer to the game ball object
+    Returns: none
+    ---------------------------------------------------------------------- */
 void move_ball(Ball* ball) {
   ball->x += ball->dx * ball->speed * ball->time_step;
   ball->y += ball->dy * ball->speed * ball->time_step;
@@ -255,6 +411,13 @@ void move_ball(Ball* ball) {
   }
 }
 
+/*  ---------------------------------------------------------------------- 
+    Description: Renders the game scores stored in the ScoreBoard object
+    Parameters: 
+      App* app: pointer the App object
+      ScoreBoard* score_board: pointer to the ScoreBoard object
+    Returns: none
+    ---------------------------------------------------------------------- */
 void draw_score(App* app, ScoreBoard* score_board) {
   char score_text[SCREEN_FPS_BUF_SIZE];
   SDL_Color score_color = { .r = 255, .g = 255, .b = 255, .a = 255 };
@@ -282,15 +445,23 @@ void draw_score(App* app, ScoreBoard* score_board) {
   fps_texture = NULL;
 }
 
+/*  ---------------------------------------------------------------------- 
+    Description: Renders the game instructions on startup. When the game is
+    in game over state, also renders the game winner's name.
+    Parameters: 
+      App* app: pointer the App object
+      Game* game: pointer to the Game object
+    Returns: none
+    ---------------------------------------------------------------------- */
 void draw_instructions(App* app, Game* game) {
   TTF_SetFontSize(game->score_board.font, 36);
   char* player_wins_text = "YAY!!! YOU WIN!!! :)\n\n";
   char* robot_wins_text = "AWWW!!! ROBOT WINS :(\n\n";
   char* instruction_text =
-    "PRESS SPACEBAR TO BEGIN\n" 
+    "PRESS SPACEBAR TO BEGIN\n"
     "PRESS R TO RESET\n"
     "PRESS S TO TOGGLE BEEPS\n"
-    "PRESS ESCAPE TO QUIT";
+    "PRESS Q TO QUIT";
 
   char output_text[SCREEN_INSTRUCTIONS_BUF_SIZE] = "";
   if (game->winner == PLAYER) {
@@ -326,6 +497,12 @@ void draw_instructions(App* app, Game* game) {
   output_texture = NULL;
 }
 
+/*  ---------------------------------------------------------------------- 
+    Description: Render the game court lines and net.
+    Parameters: 
+      App* app: pointer to the App object
+    Returns: none
+    ---------------------------------------------------------------------- */
 void draw_court(App* app) {
   SDL_SetRenderDrawColor(app->renderer, 0xFF, 0xFF, 0xFF, 0xFF);
   SDL_Rect net_line = { .w = 3, .h = 15, .x = SCREEN_MID_W - 1 };
@@ -342,6 +519,15 @@ void draw_court(App* app) {
   SDL_RenderFillRect(app->renderer, &court_line);
 }
 
+/*  ---------------------------------------------------------------------- 
+    Description: Render game stats in the offcourt area at the bottom of the 
+    screen. Stats are only of interest to game developers, so it is rendered
+    only when SDL Log priority is higher than SDL_LOG_PRIORITY_DEBUG
+    Parameters: 
+      App* app: pointer to the App object
+      Game* game: pointer to the Game object
+    Returns: none
+    ---------------------------------------------------------------------- */
 void draw_stats(App* app, Game* game) {
   // only show stats for SDL_LOG_PRIORITY_DEBUG or SDL_LOG_PRIORITY_VERBOSE
   if (SDL_LogGetPriority(LOGCAT) > SDL_LOG_PRIORITY_DEBUG) {
@@ -378,25 +564,24 @@ void draw_stats(App* app, Game* game) {
   fps_texture = NULL;
 }
 
-void load_sounds(Game* game) {
-  game->ball.paddle_sound = Mix_LoadWAV("../assets/paddle.wav");
-  if (game->ball.paddle_sound == NULL) {
-    SDL_LogError(LOGCAT, "Failed to load paddle.wav");
-  }
-  game->ball.wall_sound = Mix_LoadWAV("../assets/wall.wav");
-  if (game->ball.wall_sound == NULL) {
-    SDL_LogError(LOGCAT, "Failed to load wall.wav");
-  }
-  game->point_sound = Mix_LoadWAV("../assets/point.wav");
-  if (game->point_sound == NULL) {
-    SDL_LogError(LOGCAT, "Failed to load point.wav");
-  }
-}
-
+/*  ---------------------------------------------------------------------- 
+    Description: Plays the given sound
+    Parameters: 
+      Mix_Chunk* sound: pointer to the Mix_Chunk sound object
+    Returns: none
+    ---------------------------------------------------------------------- */
 void play_sound(Mix_Chunk* sound) {
   Mix_PlayChannel(-1, sound, 0);
 }
 
+/*  ---------------------------------------------------------------------- 
+    Description: Entry point to game execution
+    Parameters: standard argc and argv. Note this main() is actually called by 
+    SDL, which will bitterly complain if the signature is changed, e.g. 
+      error: conflicting types for 'SDL_main'; have 'int(int,  char *)'
+      143 | #define main    SDL_main
+    Returns: Exit status expected by platform
+    ---------------------------------------------------------------------- */
 int main(int argc, char* argv[]) {
   (void)argc, (void)argv;
 
@@ -407,29 +592,17 @@ int main(int argc, char* argv[]) {
     return EXIT_FAILURE;
   }
 
-  TTF_Font* stats_font =
-    TTF_OpenFont("../assets/Inconsolata-Regular.ttf", 14);
-  if (stats_font == NULL) {
-    SDL_LogError(LOGCAT,
-      "Failed to load font! SDL_ttf Error: %s\n",
-      TTF_GetError());
-  }
-
-  TTF_Font* score_font =
-    TTF_OpenFont("../assets/VT323-Regular.ttf", 40);
-  if (score_font == NULL) {
-    SDL_LogError(LOGCAT,
-      "Failed to load font! SDL_ttf Error: %s\n",
-      TTF_GetError());
-  }
-
   Game game = {
-    .score_board = {.font = score_font, .player = 0, .robot = 0 },
+    .score_board = {
+      .font = load_font("../assets/VT323-Regular.ttf", 40),
+      .player = 0,
+      .robot = 0
+    },
     .winner = NOBODY,
     .player = {0},
     .robot = {0},
     .ball = {0},
-    .stats_font = stats_font,
+    .stats_font = load_font("../assets/Inconsolata-Regular.ttf", 14),
     .play_sounds = true,
     .running = true,
     .idle = true,
@@ -459,6 +632,7 @@ int main(int argc, char* argv[]) {
       }
       if (e.type == SDL_KEYDOWN) {
         switch (e.key.keysym.sym) {
+        case SDLK_q:
         case SDLK_ESCAPE:
           game.running = false;
           break;
@@ -468,6 +642,9 @@ int main(int argc, char* argv[]) {
           break;
         case SDLK_r:
           reset_game(&game);
+          break;
+        case SDLK_l:
+          set_log_priority(app);
           break;
         case SDLK_s:
           game.play_sounds = !game.play_sounds;
@@ -589,7 +766,7 @@ int main(int argc, char* argv[]) {
     }
   }
 
-  TTF_CloseFont(stats_font);
+  TTF_CloseFont(game.stats_font);
   TTF_CloseFont(game.score_board.font);
   SDL_DestroyRenderer(app->renderer);
   SDL_DestroyWindow(app->window);
