@@ -7,22 +7,5 @@
     "stdio.h": "c",
     "pong.h": "c",
     "sdl_mixer.h": "c"
-  },
-  "makefile.configurations": [
-    {
-      "name": "Default",
-      "makeArgs": []
-    },
-    {
-      "name": "Print make version",
-      "makeArgs": ["--version"]
-    }
-  ],
-  "makefile.launchConfigurations": [
-    {
-      "cwd": "d:\\Dev\\SDL2\\SDL_Pong\\build",
-      "binaryPath": "d:\\Dev\\SDL2\\SDL_Pong\\build\\pong.exe",
-      "binaryArgs": []
-    }
-  ]
+  }
 }

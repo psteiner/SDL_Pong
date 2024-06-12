@@ -7,13 +7,13 @@
       "command": "make",
       "args": [
         "BUILD_MODE=DEBUG",
-        "PROJECT_NAME=${fileBasenameNoExtension}"
+        "PROJECT_NAME=pong"
       ],
       "windows": {
         "command": "mingw32-make.exe",
         "args": [
           "BUILD_MODE=DEBUG",
-          "PROJECT_NAME=${fileBasenameNoExtension}"
+          "PROJECT_NAME=pong"
         ]
       },
       "group": "build",
@@ -27,13 +27,13 @@
       "command": "make",
       "args": [
         "clean",
-        "PROJECT_NAME=${fileBasenameNoExtension}"
+        "PROJECT_NAME=pong"
       ],
       "windows": {
         "command": "mingw32-make.exe",
         "args": [
           "clean",
-          "PROJECT_NAME=${fileBasenameNoExtension}"
+          "PROJECT_NAME=pong"
         ]
       },
       "group": "build",

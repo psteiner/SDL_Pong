@@ -2,23 +2,18 @@
 .PHONY: all clean dirs
 
 PROJECT_NAME            ?= pong
-# Build mode for project: DEBUG or RELEASE
 BUILD_MODE              ?= DEBUG
 CC = gcc
 MAKE ?= mingw32-make
 SHELL=cmd
+SDL_PATH=D:/SDL2/mingw
+W64DEVKIT_PATH=D:/w64devkit/bin
 
 # Define compiler flags: CFLAGS
 #-------------------------------------------------------------------------------
-#  -g                   include debug information on compilation
-#  -s                   strip unnecessary data from build
-#  -Wall                turns on most, but not all, compiler warnings
 #  -std=c99             defines C language mode (standard C from 1999 revision)
-#  -std=gnu99           defines C language mode (GNU C from 1999 revision)
-#  -Wno-missing-braces  ignore invalid warning (GCC bug 53119)
-#  -Wno-unused-value    ignore unused return values of some functions (i.e. fread())
-#  -D_DEFAULT_SOURCE    use with -std=c99 on Linux, required for timespec
-CFLAGS = -std=c99 -Wall -Wno-missing-braces -Wunused-result
+#  -Wall                turns on most, but not all, compiler warnings
+CFLAGS = -std=c99 -Wall
 
 ifeq ($(BUILD_MODE),DEBUG)
   # disables optimization, maximizes debug information, enables run-time
@@ -30,22 +25,19 @@ endif
 
 # Define include paths for required headers: INC_PATH
 #-------------------------------------------------------------------------------
-INC_PATH = -I. -ID:/SDL2/mingw/include/SDL2
+INC_PATH = -I. -I$(SDL_PATH)/include/SDL2
 
 # Define library paths containing required libs: LDFLAGS
 #-------------------------------------------------------------------------------
-LDFLAGS = -L. -LD:/SDL2/mingw/lib
+LDFLAGS = -L. -L$(SDL_PATH)/lib
 
-# -Wl,--subsystem,windows hides the console window
 ifeq ($(BUILD_MODE), RELEASE)
+# -s Remove all symbol table and relocation information from the executable
+# -Wl,--subsystem,windows hides the console window
 		LDFLAGS += -s -Wl,--subsystem,windows
 endif
 
 # Define libraries required on linking: LDLIBS
-# NOTE: To link libraries (lib<name>.so or lib<name>.a), use -l<name>
-#-------------------------------------------------------------------------------
-# Libraries for Windows desktop compilation
-# NOTE: WinMM library required to set high-res timer resolution
 LDLIBS = -lmingw32 -lSDL2main -lSDL2 -lSDL2_image -lSDL2_ttf -lSDL2_mixer
 
 # Define source code object files required
@@ -76,8 +68,9 @@ $(OBJ_DIR)/%.o : $(SRC_DIR)/%.c
 	@echo +++ input: $< output: $@
 	$(CC) $(CFLAGS) $(INC_PATH) -c $< -o $@
 
+# make bin/obj dirs
 dirs:
-	D:\w64devkit\bin\mkdir -p $(OBJ_DIR)
+	$(W64DEVKIT_PATH)/mkdir -p $(OBJ_DIR)
 
 # Clean everything
 clean: 
