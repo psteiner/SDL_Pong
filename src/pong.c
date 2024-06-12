@@ -61,9 +61,10 @@ void reset_game(Game* game) {
   game->score_board.player = 0;
   game->score_board.robot = 0;
   game->winner = game->over ? game->winner : NOBODY;
-  reset_paddle(&game->player);
-  reset_paddle(&game->robot);
-  reset_ball(&game->ball);
+  reset_paddle(&game->player, PLAYER);
+  reset_paddle(&game->robot, ROBOT);
+  reset_ball(&game->ball, ROBOT);
+  game->ball.speed = BALL_MIN_SPEED;
   game->idle = true;
   game->over = false;
 }
@@ -93,7 +94,8 @@ void handle_input(SDL_Event* e, Paddle* paddle) {
   }
 }
 
-void reset_paddle(Paddle* paddle) {
+void reset_paddle(Paddle* paddle, Player owner) {
+  paddle->owner = owner;
   paddle->speed = PADDLE_SPEED;
   paddle->time_step = 0;
   paddle->dx = 0;
@@ -207,8 +209,8 @@ void move_paddle(Paddle* paddle) {
   }
 }
 
-void reset_ball(Ball* ball) {
-  ball->service = ball->service != NOBODY ? ball->service : ROBOT;
+void reset_ball(Ball* ball, Player server) {
+  ball->service = server;
   ball->speed = ball->speed < BALL_MIN_SPEED ? BALL_MIN_SPEED : ball->speed;
   ball->x = 0;
   ball->y = 0;
@@ -436,16 +438,11 @@ int main(int argc, char* argv[]) {
 
   load_sounds(&game);
 
-  // Paddle player = { 0 };
-  game.player.owner = PLAYER;
-  reset_paddle(&game.player);
+  reset_paddle(&game.player, PLAYER);
 
-  // Paddle robot = { 0 };
-  game.robot.owner = ROBOT;
-  reset_paddle(&game.robot);
+  reset_paddle(&game.robot, ROBOT);
 
-  // Ball ball = { 0 };
-  reset_ball(&game.ball);
+  reset_ball(&game.ball, ROBOT);
 
   SDL_Event e;
   game.frame_count = 0;
@@ -528,9 +525,8 @@ int main(int argc, char* argv[]) {
         game.over = true;
         game.winner = PLAYER;
       } else {
-        game.ball.service = PLAYER;
-        reset_ball(&game.ball);
-        game.ball.x = PLAYER_SERVICE_X;
+        reset_ball(&game.ball, PLAYER);
+        // game.ball.x = PLAYER_SERVICE_X;
         game.ball.y = game.player.y + game.player.h / 2;
       }
     }
@@ -543,9 +539,7 @@ int main(int argc, char* argv[]) {
         game.over = true;
         game.winner = ROBOT;
       } else {
-        game.ball.service = ROBOT;
-        reset_ball(&game.ball);
-        game.ball.x = ROBOT_SERVICE_X;
+        reset_ball(&game.ball, ROBOT);
         game.ball.y = game.robot.y + game.robot.h / 2;
       }
     }
