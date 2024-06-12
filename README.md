@@ -7,14 +7,16 @@
 
 ## Features TBD
 
-* Prefer robot intercepting ball with middle of paddle
-* Sound effects
+* Document code (functions, etc.)
+* Make Robot AI more 'human':
+  * Intercept ball with middle of paddle
+  * Add an 'overshoot' random factor
+  * Move the paddle toward the middle of the screen after a volley
 * Use environment variable to control console logging and in-game stats output
-* function documentation
-* Release build
+* Add Release build to makefile
 * License
-* Packaging and distribution
-* Cross-platform build
+* Add packaging and distribution to makefile (build an installer exe with NSIS?)
+* Cross-platform builds?
   * Windows (done)
   * Linux
   * Macintosh
@@ -28,3 +30,4 @@
 * Court edge lines across top and bottom of screen
 * Apply 'English' when ball contacts outer sides of paddle or when paddle is moving
 * Speed up ball slightly after each volley
+* Sound effects
