@@ -85,8 +85,8 @@ clean:
 
 dist: clean all
 	@echo. & echo Building distribution in $(DIST_DIR) for $(ZIP)
-	@copy $(EXE) $(DIST_DIR)
+	@robocopy $(BIN_DIR) $(DIST_DIR)\bin *.exe $(RC_FLAGS) &
 	@robocopy assets $(DIST_DIR)\assets $(RC_FLAGS) /E /XF *.lch &
-	@robocopy $(SDL_PATH)\bin $(DIST_DIR) *.dll $(RC_FLAGS) & sleep 2s
+	@robocopy $(SDL_PATH)\bin $(DIST_DIR)\bin *.dll $(RC_FLAGS) & sleep 2s
 	@pushd $(DIST_DIR)\ & powershell Compress-Archive -Force * ..\$(ZIP)
 	@echo dist build done
