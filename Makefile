@@ -51,7 +51,7 @@ DIST_DIR = dist
 
 # Define all object files from source files
 SRCS = $(SRC_DIR)\$(PROJECT_NAME).c
-OBJS = $(SRCS:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
+OBJS = $(SRCS:$(SRC_DIR)\%.c=$(OBJ_DIR)\%.o)
 EXE = $(BIN_DIR)\$(PROJECT_NAME).exe
 ZIP = $(PROJECT_NAME).zip
 
